@@ -4,11 +4,11 @@ version: "3.8"
 # Then: docker compose up -d
 #
 # Services:
-#   db      → PostgreSQL 15 + pgvector  (localhost:5432)
-#   rest    → PostgREST HTTP API        (localhost:3000)
-#   meta    → Postgres Meta (Studio UI) (internal)
-#   kong    → API Gateway               (localhost:8000)
-#   studio  → Supabase Studio           (localhost:3001)
+#   db      -> PostgreSQL 15 + pgvector  (localhost:5432)
+#   rest    -> PostgREST HTTP API        (localhost:3000)
+#   meta    -> Postgres Meta (Studio UI) (internal)
+#   kong    -> API Gateway               (localhost:8000)
+#   studio  -> Supabase Studio           (localhost:3001)
 
 services:
 
