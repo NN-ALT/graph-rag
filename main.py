@@ -37,15 +37,10 @@ def cmd_build_graph(args):
 def cmd_query(args):
     from rag.pipeline import answer
     print(f"\nQuerying: {args.question!r}")
-    print(f"{'─' * 60}")
-    result = answer(
-        args.question,
-        k=args.k,
-        graph_hops=args.hops,
-        min_similarity=args.min_sim,
-    )
+    print(f"{'\u2500' * 60}")
+    result = answer(args.question, k=args.k, graph_hops=args.hops, min_similarity=args.min_sim)
     print(result["answer"])
-    print(f"\n{'─' * 60}")
+    print(f"\n{'\u2500' * 60}")
     print(f"Context chunks used: {result['context_used']}")
 
 
@@ -67,7 +62,7 @@ def cmd_models(args):
     if models:
         print("Available models:")
         for m in models:
-            print(f"  • {m}")
+            print(f"  \u2022 {m}")
     else:
         if provider == "lmstudio":
             print("No models found. Is LM Studio running with a model loaded?")
@@ -82,31 +77,22 @@ def main():
     )
     sub = parser.add_subparsers(dest="command")
 
-    # ingest
     p_ingest = sub.add_parser("ingest", help="Ingest a document")
     p_ingest.add_argument("path", help="Path to .txt, .md, or .pdf file")
-    p_ingest.add_argument("--strategy", default="sentence", choices=["sentence", "fixed"],
-                          help="Chunking strategy (default: sentence)")
+    p_ingest.add_argument("--strategy", default="sentence", choices=["sentence", "fixed"])
 
-    # build-graph
     sub.add_parser("build-graph", help="Rebuild graph from all stored documents")
 
-    # query
     p_query = sub.add_parser("query", help="Ask a question")
-    p_query.add_argument("question", help="The question to ask")
-    p_query.add_argument("--k", type=int, default=5, help="Number of vector results (default: 5)")
-    p_query.add_argument("--hops", type=int, default=1, help="Graph expansion hops (default: 1)")
-    p_query.add_argument("--min-sim", type=float, default=0.4, dest="min_sim",
-                         help="Minimum similarity threshold (default: 0.4)")
+    p_query.add_argument("question")
+    p_query.add_argument("--k", type=int, default=5)
+    p_query.add_argument("--hops", type=int, default=1)
+    p_query.add_argument("--min-sim", type=float, default=0.4, dest="min_sim")
 
-    # stats
     sub.add_parser("stats", help="Show database statistics")
-
-    # models
     sub.add_parser("models", help="List LM Studio loaded models")
 
     args = parser.parse_args()
-
     if not args.command:
         parser.print_help()
         sys.exit(0)

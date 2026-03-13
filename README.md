@@ -20,8 +20,8 @@ A fully offline-capable RAG system that builds a knowledge graph from your docum
 
 **Clone and run the installer — it handles everything:**
 ```bash
-git clone <repo-url>
-cd graph_rag
+git clone https://github.com/NN-ALT/graph-rag.git
+cd graph-rag
 python install.py
 ```
 

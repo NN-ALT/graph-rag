@@ -25,12 +25,9 @@ import sys
 import os
 import argparse
 
-# Force UTF-8 output on Windows
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _hr(char="-", width=60):
     print(char * width)
@@ -56,14 +53,10 @@ Commands:
 """)
 
 
-# ── Core session loop ──────────────────────────────────────────────────────────
-
 def run_chat(provider_override: str | None = None):
-    # Apply provider override before importing config
     if provider_override:
         os.environ["LLM_PROVIDER"] = provider_override
 
-    # Lazy imports so the override takes effect before config is read
     from config import settings
     from rag.pipeline import answer
     from db.connection import get_conn
@@ -73,7 +66,7 @@ def run_chat(provider_override: str | None = None):
     provider = active_provider()
     _print_banner(provider)
 
-    history: list[dict] = []   # kept for display only; RAG rebuilds context each turn
+    history: list[dict] = []
 
     while True:
         try:
@@ -85,7 +78,6 @@ def run_chat(provider_override: str | None = None):
         if not user_input:
             continue
 
-        # ── Commands ──────────────────────────────────────────────────────────
         if user_input.lower() in ("quit", "exit"):
             print("Goodbye.")
             break
@@ -120,7 +112,6 @@ def run_chat(provider_override: str | None = None):
                 continue
             try:
                 from ingestion.pipeline import ingest
-                from graph.builder import build_graph_from_chunks
                 print(f"  Ingesting: {path} ...")
                 result = ingest(path)
                 print(f"  Done — {result['chunks']} chunks added for '{result['title']}'")
@@ -132,7 +123,6 @@ def run_chat(provider_override: str | None = None):
             print(f"  Unknown command. Type /help for options.")
             continue
 
-        # ── RAG query ─────────────────────────────────────────────────────────
         print()
         try:
             result = answer(user_input)
@@ -145,27 +135,18 @@ def run_chat(provider_override: str | None = None):
 
         response_text = result["answer"]
         ctx_count = result["context_used"]
-
         _hr()
         print(f"Assistant ({provider.upper()}):\n")
         print(response_text)
         _hr()
         print(f"  Sources: {ctx_count} chunk(s) retrieved")
+        history.append({"role": "user", "content": user_input})
+        history.append({"role": "assistant", "content": response_text})
 
-        history.append({"role": "user",      "content": user_input})
-        history.append({"role": "assistant",  "content": response_text})
-
-
-# ── Entry point ────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(description="Graph RAG interactive chat")
-    parser.add_argument(
-        "--provider", "-p",
-        choices=["lmstudio", "claude"],
-        default=None,
-        help="Override LLM_PROVIDER from .env for this session",
-    )
+    parser.add_argument("--provider", "-p", choices=["lmstudio", "claude"], default=None)
     args = parser.parse_args()
     run_chat(provider_override=args.provider)
 
