@@ -1,0 +1,32 @@
+# Environment — NEVER commit this
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# Docker volumes
+db_data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs & cache
+*.log
+.cache/

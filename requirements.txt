@@ -1,0 +1,29 @@
+# Database
+psycopg2-binary==2.9.10
+pgvector==0.3.2
+
+# Embeddings — downloads once, runs offline forever after
+sentence-transformers==3.4.1
+torch==2.6.0
+
+# NLP / Graph
+spacy==3.8.11
+networkx==3.3
+nltk==3.8.1
+
+# LLM clients
+openai==1.35.13          # LM Studio (OpenAI-compatible local API)
+anthropic==0.40.0        # Claude API (requires ANTHROPIC_API_KEY + internet)
+
+# PDF support
+pypdf==4.3.1
+
+# Config
+python-dotenv==1.0.1
+numpy>=2.0
+
+# JWT generation (generate_keys.py)
+PyJWT==2.8.0
+
+# MCP server
+fastmcp>=2.0.0

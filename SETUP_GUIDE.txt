@@ -1,0 +1,324 @@
+============================================================
+  Graph RAG — Setup Documentation
+  What was built, how, and why
+============================================================
+
+This document explains every step taken to set up the Graph RAG
+system on this machine. Written for future reference or if you
+ever need to redo this on a new machine.
+
+
+------------------------------------------------------------
+WHAT IS GRAPH RAG?
+------------------------------------------------------------
+
+RAG stands for Retrieval-Augmented Generation. Instead of
+asking an AI a question from memory alone, RAG first searches
+a local knowledge base of your own documents, pulls out the
+most relevant pieces, and feeds them to the AI as context.
+The AI then answers using that context — grounded in your data.
+
+"Graph" RAG goes a step further: it also builds a knowledge
+graph (a network of entities and relationships extracted from
+your documents). When you ask a question, it retrieves chunks
+not just by text similarity, but also by following connections
+in the graph — finding related content you might have missed.
+
+This setup works fully offline using LM Studio, or online
+using the Claude API. You can switch between them anytime.
+
+
+------------------------------------------------------------
+PART 1 — THE SUPABASE DATABASE (Docker)
+------------------------------------------------------------
+
+WHAT:
+  Supabase is an open-source backend platform built on top of
+  PostgreSQL. We use it for its database, REST API, and web
+  dashboard. The key feature we need is pgvector — a PostgreSQL
+  extension that lets us store and search embeddings (the
+  numerical representations of text used for similarity search).
+
+HOW IT WAS SET UP:
+
+  Step 1 — Created docker-compose.yml
+    Five containers were defined:
+    - graph_rag_db     : PostgreSQL 15 with pgvector pre-installed
+    - graph_rag_rest   : PostgREST (turns the DB into a REST API)
+    - graph_rag_meta   : Postgres Meta (used by the Studio UI)
+    - graph_rag_kong   : Kong API gateway (routes requests for Studio)
+    - graph_rag_studio : Supabase Studio (web dashboard at localhost:3001)
+
+  Step 2 — Generated secrets
+    Ran: py generate_keys.py
+    This created the .env file containing:
+    - A random PostgreSQL password
+    - A JWT secret (used by PostgREST to authenticate requests)
+    - ANON_KEY and SERVICE_ROLE_KEY (JWTs signed with the secret)
+    - DB connection settings (host, port, name, user, password)
+
+  Step 3 — Hit a problem: supabase/postgres requires supabase_admin
+    When the containers first started, the init SQL script failed
+    because the supabase/postgres image requires a role called
+    "supabase_admin" to exist before it will allow extensions
+    (like pgvector) to be installed. This role is normally created
+    by Supabase's own setup process, but since we're running it
+    standalone we had to create it manually.
+
+    Fix: Connected directly to the running container and ran:
+      CREATE ROLE supabase_admin SUPERUSER LOGIN ...;
+    Then ran the full init.sql manually to create all tables.
+
+    The init.sql was also updated so this role is created
+    automatically on any future fresh start.
+
+  Step 4 — Hit a problem: Studio image tag not found
+    The specific docker image tag "supabase/studio:20240916-bf28c1f"
+    did not exist on Docker Hub. Fixed by pulling the latest tag:
+      docker pull supabase/studio:latest
+    and updating docker-compose.yml to use "latest".
+
+  Step 5 — Verified everything is running
+    docker ps confirmed all 5 containers are up.
+    DB is accessible at localhost:5432.
+    Studio dashboard is accessible at http://localhost:3001.
+
+WHAT THE DATABASE CONTAINS:
+  - documents    : The full text of every ingested document
+  - chunks       : Documents split into smaller searchable pieces
+  - embeddings   : Vector representations of each chunk (384 numbers)
+  - graph_nodes  : Entities extracted from text (people, places, concepts)
+  - graph_edges  : Relationships between those entities
+  - match_chunks(): A SQL function that finds similar chunks by vector
+
+
+------------------------------------------------------------
+PART 2 — THE PYTHON PROJECT
+------------------------------------------------------------
+
+WHAT:
+  A Python package that handles the full pipeline:
+  ingest documents -> embed them -> store in DB -> build graph
+  -> retrieve on query -> send to AI -> return answer.
+
+FOLDER STRUCTURE CREATED:
+
+  graph_rag/
+  |
+  |-- chat.py           The interactive chat script you run
+  |-- main.py           CLI tool (ingest, query, stats, etc.)
+  |-- config.py         Reads settings from .env
+  |-- generate_keys.py  One-time secret generator
+  |-- requirements.txt  Python package list
+  |-- COMMANDS.txt      Quick command reference
+  |-- SETUP_GUIDE.txt   This file
+  |
+  |-- db/               Database layer
+  |   |-- connection.py Connection pool (reuses DB connections)
+  |   |-- models.py     Python classes matching the DB tables
+  |   |-- queries.py    All SQL queries in one place
+  |
+  |-- embeddings/
+  |   |-- encoder.py    Converts text to vectors (runs offline)
+  |
+  |-- ingestion/
+  |   |-- loader.py     Reads .txt, .md, .pdf files from disk
+  |   |-- chunker.py    Splits documents into smaller pieces
+  |   |-- pipeline.py   Orchestrates load -> chunk -> embed -> store
+  |
+  |-- graph/
+  |   |-- extractor.py  Pulls entities/relationships from text
+  |   |-- builder.py    Stores extracted graph into the database
+  |   |-- store.py      Loads graph from DB into memory (networkx)
+  |   |-- traversal.py  Graph navigation (neighbors, paths, etc.)
+  |
+  |-- retrieval/
+  |   |-- vector_search.py  Finds similar chunks using embeddings
+  |   |-- graph_search.py   Expands results using graph connections
+  |   |-- hybrid.py         Combines both into a single result set
+  |
+  |-- llm/
+  |   |-- client.py     Sends prompts to LM Studio or Claude
+  |
+  |-- rag/
+  |   |-- context_builder.py  Assembles chunks into a prompt context
+  |   |-- pipeline.py         Full question-answering pipeline
+  |
+  |-- sql/
+  |   |-- init.sql      Database schema (auto-runs on first start)
+  |
+  |-- kong/
+      |-- kong.yml      API gateway routing rules
+
+
+------------------------------------------------------------
+PART 3 — PYTHON DEPENDENCIES
+------------------------------------------------------------
+
+WHAT WAS INSTALLED:
+
+  Database:
+    psycopg2-binary  Connects Python to PostgreSQL
+    pgvector         Lets psycopg2 read/write vector columns
+
+  Embeddings (converts text to numbers for similarity search):
+    sentence-transformers  The embedding library
+    torch                  Required by sentence-transformers
+    Model used: all-MiniLM-L6-v2 (384 dimensions, fast, accurate)
+    After the first run, the model is cached and works offline.
+
+  NLP and Graph:
+    spacy      Extracts named entities from text (people, places, etc.)
+    networkx   In-memory graph data structure and algorithms
+    nltk       Sentence tokenizer (splits text into sentences)
+
+  LLM Clients:
+    openai     Used to talk to LM Studio (it speaks OpenAI's protocol)
+    anthropic  Used to talk to the Claude API
+
+  File Support:
+    pypdf      Reads PDF files
+
+  Utilities:
+    python-dotenv  Reads the .env file
+    PyJWT          Generates JWT tokens (used by generate_keys.py)
+    numpy          Array math (needed by pgvector)
+
+PROBLEMS ENCOUNTERED AND FIXED:
+
+  Problem 1: psycopg2-binary 2.9.9 has no wheel for Python 3.13
+    It tried to build from source but failed (needs pg_config).
+    Fix: Upgraded to psycopg2-binary 2.9.10 which has a pre-built
+    Windows wheel for Python 3.13.
+
+  Problem 2: torch 2.3.1 doesn't exist for Python 3.13
+    The earliest torch version supporting Python 3.13 is 2.6.0.
+    Fix: Changed requirements.txt to torch==2.6.0.
+
+  Problem 3: spacy 3.7.5 tried to build from source on Python 3.13
+    It failed because the build system (Meson) found Git's link.exe
+    instead of MSVC's linker.
+    Fix: Upgraded to spacy 3.8.11 which has a pre-built wheel for
+    Python 3.13 on Windows.
+
+  Problem 4: numpy 1.26.4 has no wheel for Python 3.13
+    Same issue — tried to build from source and failed.
+    Fix: Changed to numpy>=2.0 (2.4.3 was already installed and works).
+
+ONE-TIME DOWNLOADS (done once, then cached offline):
+    spaCy English model:  py -m spacy download en_core_web_sm
+    NLTK punkt tokenizer: downloaded via nltk.download()
+    Embedding model:      downloaded from HuggingFace on first encode()
+
+
+------------------------------------------------------------
+PART 4 — LLM PROVIDERS
+------------------------------------------------------------
+
+Two providers are supported. Switch by editing LLM_PROVIDER in .env.
+
+  LMSTUDIO (default, fully offline):
+    - Requires LM Studio app to be running
+    - Enable Local Server in LM Studio (Settings -> Local Server)
+    - Load any model in LM Studio
+    - The Python code connects to http://localhost:1234/v1
+    - Uses the same API format as OpenAI, so the openai Python
+      package is used to talk to it
+
+  CLAUDE (Anthropic API, requires internet):
+    - Requires an API key from https://console.anthropic.com/
+    - Set ANTHROPIC_API_KEY in .env
+    - Default model: claude-sonnet-4-6
+    - Uses the anthropic Python package
+
+  HOW PROVIDER SWITCHING WORKS:
+    The llm/client.py file has two internal functions:
+      _lmstudio_chat() and _claude_chat()
+    The public chat() function reads LLM_PROVIDER from settings
+    and routes to the correct one. Everything else in the system
+    (rag/pipeline.py, chat.py) just calls chat() and doesn't
+    need to know which provider is active.
+
+
+------------------------------------------------------------
+PART 5 — HOW A QUERY WORKS (end to end)
+------------------------------------------------------------
+
+When you type a question in chat.py, here is exactly what happens:
+
+  1. Your question is encoded into a vector (384 numbers)
+     using the all-MiniLM-L6-v2 embedding model running locally.
+
+  2. That vector is sent to PostgreSQL via the match_chunks()
+     SQL function, which uses pgvector to find the most similar
+     chunks by cosine distance.
+
+  3. The chunk IDs from step 2 are used to look up those chunks'
+     graph nodes in the knowledge graph.
+
+  4. The graph is traversed 1-2 hops out from those nodes,
+     collecting IDs of additional related chunks that may not
+     have appeared in the vector search.
+
+  5. All collected chunks (vector results + graph-expanded) are
+     fetched from the database and assembled into a context string.
+
+  6. That context is inserted into a prompt:
+       "Answer using ONLY this context: [context]
+        Question: [your question]"
+
+  7. The prompt is sent to your active LLM (LM Studio or Claude).
+
+  8. The response is printed to your terminal, along with how
+     many chunks were used as context.
+
+
+------------------------------------------------------------
+PART 6 — ADDING YOUR OWN DOCUMENTS
+------------------------------------------------------------
+
+To add documents to the knowledge base:
+
+  In the terminal:
+    py main.py ingest path/to/yourfile.txt
+    py main.py ingest path/to/yourfile.pdf
+
+  While chat is running:
+    /ingest path/to/yourfile.txt
+
+  Supported formats: .txt  .md  .pdf
+
+  After ingesting several documents, rebuild the graph:
+    py main.py build-graph
+
+  Check what's in the database:
+    py main.py stats
+
+
+------------------------------------------------------------
+PART 7 — IF YOU NEED TO START OVER
+------------------------------------------------------------
+
+To fully reset (delete all data and start fresh):
+
+  1. Stop and remove containers + volumes:
+       docker compose down -v
+
+  2. Start fresh:
+       docker compose up -d
+
+  3. Wait ~15 seconds, then manually run the init SQL:
+       docker exec -i graph_rag_db psql -U postgres < sql/init.sql
+
+  Note: The supabase_admin role fix is now included in init.sql,
+  so step 3 should work without any manual role creation.
+
+  4. To regenerate a new .env (new passwords/tokens):
+       py generate_keys.py
+
+
+============================================================
+  Setup completed on: 2026-03-13
+  Python version    : 3.13
+  Platform          : Windows 10
+============================================================

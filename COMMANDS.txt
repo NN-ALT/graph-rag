@@ -1,0 +1,133 @@
+============================================================
+  Graph RAG - Command Reference
+============================================================
+
+------------------------------------------------------------
+TERMINAL COMMANDS
+(Run from the graph_rag project directory)
+------------------------------------------------------------
+
+Start chat (uses LLM_PROVIDER from .env):
+    py chat.py
+
+Start chat with a specific provider:
+    py chat.py --provider lmstudio
+    py chat.py --provider claude
+
+Ingest a document:
+    py main.py ingest <path/to/file.txt>
+    py main.py ingest <path/to/file.pdf>
+    py main.py ingest <path/to/file.md>
+
+Ingest with a specific chunking strategy:
+    py main.py ingest <path> --strategy sentence
+    py main.py ingest <path> --strategy fixed
+
+Rebuild the knowledge graph from all stored documents:
+    py main.py build-graph
+
+Ask a question (non-interactive):
+    py main.py query "Your question here"
+
+Ask with custom options:
+    py main.py query "Your question" --k 10 --hops 2 --min-sim 0.3
+
+Show database statistics:
+    py main.py stats
+
+List loaded LLM models / active provider:
+    py main.py models
+
+------------------------------------------------------------
+DOCKER COMMANDS
+(Run from the graph_rag project directory)
+------------------------------------------------------------
+
+Start all containers:
+    docker compose up -d
+
+Stop all containers:
+    docker compose down
+
+View running containers and status:
+    docker ps
+
+View database logs:
+    docker logs graph_rag_db
+
+Open Supabase Studio (browser):
+    http://localhost:3001
+
+Connect directly to Postgres:
+    docker exec -it graph_rag_db psql -U postgres
+
+------------------------------------------------------------
+IN-SESSION COMMANDS
+(Available inside py chat.py)
+------------------------------------------------------------
+
+/ingest <path>    Add a document to the knowledge base
+                  Example: /ingest C:/docs/report.pdf
+
+/stats            Show document, chunk, and graph counts
+
+/provider         Show the active LLM provider (lmstudio or claude)
+
+/clear            Clear conversation history display
+
+/help             Show all in-session commands
+
+quit              Exit the chat session
+exit              Exit the chat session
+
+------------------------------------------------------------
+ONE-TIME SETUP COMMANDS
+(Already done - for reference only)
+------------------------------------------------------------
+
+Generate .env secrets (JWT + Postgres password):
+    py generate_keys.py
+
+Install Python dependencies:
+    py -m pip install -r requirements.txt
+
+Download spaCy NLP model:
+    py -m spacy download en_core_web_sm
+
+Download NLTK tokenizer:
+    py -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"
+
+Pre-cache embedding model (all-MiniLM-L6-v2):
+    py -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+
+------------------------------------------------------------
+LLM PROVIDER SETTINGS
+(Edit the .env file in the project directory)
+------------------------------------------------------------
+
+Switch to LM Studio (offline):
+    LLM_PROVIDER=lmstudio
+    LM_STUDIO_URL=http://localhost:1234/v1
+    LM_STUDIO_MODEL=local-model
+
+Switch to Claude (Anthropic API):
+    LLM_PROVIDER=claude
+    ANTHROPIC_API_KEY=sk-ant-...
+    CLAUDE_MODEL=claude-sonnet-4-6
+
+Available Claude models:
+    claude-sonnet-4-6
+    claude-opus-4-6
+    claude-haiku-4-5-20251001
+
+------------------------------------------------------------
+SERVICES & PORTS
+------------------------------------------------------------
+
+PostgreSQL (Supabase DB)  : localhost:5432
+PostgREST (REST API)      : localhost:3000
+Kong (API Gateway)        : localhost:8000
+Supabase Studio (Web UI)  : localhost:3001
+LM Studio (local AI)      : localhost:1234
+
+============================================================
