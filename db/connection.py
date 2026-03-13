@@ -1,6 +1,6 @@
 """
 Connection pool for PostgreSQL.
-Registers pgvector type so Python lists ↔ VECTOR columns transparently.
+Registers pgvector type so Python lists <-> VECTOR columns transparently.
 """
 
 import psycopg2
