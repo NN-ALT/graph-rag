@@ -1,5 +1,5 @@
 """
-Ingestion pipeline: load → chunk → embed → store → build graph
+Ingestion pipeline: load -> chunk -> embed -> store -> build graph
 """
 
 from __future__ import annotations
@@ -18,11 +18,9 @@ def ingest(path: str, strategy: str = "sentence") -> dict:
     doc = load_document(path)
 
     with get_conn() as conn:
-        # Store document
         doc_id = queries.insert_document(conn, doc)
         print(f"[ingest] Document stored: {doc_id}")
 
-        # Chunk
         chunks = chunk_document(
             doc, doc_id,
             strategy=strategy,
@@ -31,19 +29,16 @@ def ingest(path: str, strategy: str = "sentence") -> dict:
         )
         print(f"[ingest] Created {len(chunks)} chunks")
 
-        # Store chunks
         chunk_ids = []
         for chunk in chunks:
             cid = queries.insert_chunk(conn, chunk)
             chunk.id = cid
             chunk_ids.append(cid)
 
-        # Embed
         texts = [c.content for c in chunks]
         vectors = encode(texts)
         print(f"[ingest] Embedded {len(vectors)} chunks")
 
-        # Store embeddings
         for chunk, vector in zip(chunks, vectors):
             emb = Embedding(
                 chunk_id=chunk.id,

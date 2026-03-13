@@ -40,7 +40,6 @@ def _sentence_chunks(doc: Document, doc_id: UUID, chunk_size: int, overlap: int)
             text = " ".join(current)
             chunks.append(_make_chunk(doc_id, chunk_index, text, doc.content))
             chunk_index += 1
-            # Keep overlap: retain last N chars worth of sentences
             overlap_sentences = []
             overlap_len = 0
             for s in reversed(current):
@@ -85,7 +84,7 @@ def _fixed_chunks(doc: Document, doc_id: UUID, chunk_size: int, overlap: int) ->
 
 
 def _make_chunk(doc_id: UUID, index: int, text: str, full_text: str) -> Chunk:
-    char_start = full_text.find(text[:50])  # approximate offset
+    char_start = full_text.find(text[:50])
     return Chunk(
         document_id=doc_id,
         chunk_index=index,

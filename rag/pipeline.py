@@ -1,5 +1,5 @@
 """
-End-to-end RAG pipeline: query → retrieve → augment → generate.
+End-to-end RAG pipeline: query -> retrieve -> augment -> generate.
 """
 
 from __future__ import annotations
@@ -21,43 +21,13 @@ def answer(
     temperature: float = 0.2,
     max_tokens: int = 1024,
 ) -> dict:
-    """
-    Full pipeline. Returns:
-        {
-            "answer": str,
-            "context_used": int,     # number of chunks used
-            "sources": list[str],    # chunk IDs used
-        }
-    """
-    # Retrieve
     results = retrieve(query, k=k, graph_hops=graph_hops, min_similarity=min_similarity)
-
     if not results:
-        return {
-            "answer": "No relevant information found in the knowledge base.",
-            "context_used": 0,
-            "sources": [],
-        }
-
-    # Build context
+        return {"answer": "No relevant information found in the knowledge base.", "context_used": 0, "sources": []}
     context = build_context(results, max_tokens=max_context_tokens)
-
-    # Build prompt
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": f"Context:\n{context}\n\nQuestion: {query}",
-        },
+        {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"},
     ]
-
-    # Generate
     response = chat(messages, temperature=temperature, max_tokens=max_tokens)
-
-    sources = [str(r.get("chunk_id", "")) for r in results]
-
-    return {
-        "answer": response,
-        "context_used": len(results),
-        "sources": sources,
-    }
+    return {"answer": response, "context_used": len(results), "sources": [str(r.get("chunk_id", "")) for r in results]}

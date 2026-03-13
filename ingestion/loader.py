@@ -26,7 +26,6 @@ def load_document(path: str) -> Document:
         doc_type = "pdf"
 
     else:
-        # Fallback: read as text
         content = p.read_text(encoding="utf-8", errors="replace")
         doc_type = "text"
 

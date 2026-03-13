@@ -31,7 +31,6 @@ def get_related_chunk_ids(graph: nx.DiGraph, node_id: str, hops: int = 1) -> lis
         if data.get("source_chunk_id"):
             chunk_ids.add(data["source_chunk_id"])
 
-        # Also collect from edges
         for _, _, edata in graph.edges(nid, data=True):
             if edata.get("source_chunk_id"):
                 chunk_ids.add(edata["source_chunk_id"])

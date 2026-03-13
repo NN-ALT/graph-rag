@@ -20,14 +20,12 @@ def build_graph_from_chunks(chunks: list[Chunk]) -> dict:
 
             nodes, edges = extract_entities_and_relations(chunk)
 
-            # Upsert nodes and collect label→id mapping
             label_to_id: dict[str, object] = {}
             for node in nodes:
                 node_id = queries.upsert_graph_node(conn, node)
                 label_to_id[node.label.lower()] = node_id
                 node_count += 1
 
-            # Upsert edges — resolve label references to real IDs
             for edge in edges:
                 src_label = edge.properties.pop("_src_label", None)
                 tgt_label = edge.properties.pop("_tgt_label", None)

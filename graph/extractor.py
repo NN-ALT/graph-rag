@@ -40,13 +40,12 @@ def extract_entities_and_relations(
             continue
         node = GraphNode(
             label=label,
-            node_type=ent.label_.lower(),  # e.g. 'person', 'org', 'gpe'
+            node_type=ent.label_.lower(),
             source_chunk_id=chunk.id,
             properties={"spacy_label": ent.label_},
         )
         entities.append(node)
 
-    # Also extract noun chunks as "concept" nodes
     for nc in doc.noun_chunks:
         label = nc.root.text.strip()
         if len(label) < 2 or label.lower() in {"i", "we", "they", "it", "this", "that"}:
@@ -58,7 +57,6 @@ def extract_entities_and_relations(
         )
         entities.append(node)
 
-    # Deduplicate by label
     seen: dict[str, GraphNode] = {}
     for node in entities:
         key = node.label.lower()
@@ -66,12 +64,10 @@ def extract_entities_and_relations(
             seen[key] = node
     unique_entities = list(seen.values())
 
-    # Co-occurrence edges between all entity pairs in same chunk
     edges: list[GraphEdge] = []
     for a, b in combinations(unique_entities, 2):
-        # Placeholder IDs — will be resolved after upsert
         edge = GraphEdge(
-            source_node_id=None,  # filled in builder.py
+            source_node_id=None,
             target_node_id=None,
             relation_type="co_occurs",
             weight=1.0,
@@ -85,7 +81,6 @@ def extract_entities_and_relations(
 
 def _regex_extract(chunk: Chunk) -> tuple[list[GraphNode], list[GraphEdge]]:
     import re
-    # Simple: extract capitalized multi-word phrases as concepts
     pattern = r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b"
     matches = re.findall(pattern, chunk.content)
     seen: dict[str, GraphNode] = {}

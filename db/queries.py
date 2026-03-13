@@ -10,7 +10,7 @@ import numpy as np
 from db.models import Document, Chunk, Embedding, GraphNode, GraphEdge
 
 
-# ── Documents ─────────────────────────────────────────────────────────────────
+# ── Documents ───────────────────────────────────────────────────────────────────────────────
 
 def insert_document(conn, doc: Document) -> UUID:
     with conn.cursor() as cur:
@@ -32,7 +32,7 @@ def get_all_documents(conn) -> list[Document]:
     return [Document(id=r[0], title=r[1], source=r[2], content=r[3], doc_type=r[4], metadata=r[5]) for r in rows]
 
 
-# ── Chunks ─────────────────────────────────────────────────────────────────────
+# ── Chunks ────────────────────────────────────────────────────────────────────────────────
 
 def insert_chunk(conn, chunk: Chunk) -> UUID:
     with conn.cursor() as cur:
@@ -90,7 +90,7 @@ def get_chunks_by_document(conn, document_id: UUID) -> list[Chunk]:
     ]
 
 
-# ── Embeddings ─────────────────────────────────────────────────────────────────
+# ── Embeddings ───────────────────────────────────────────────────────────────────────────────
 
 def insert_embedding(conn, emb: Embedding) -> UUID:
     with conn.cursor() as cur:
@@ -124,7 +124,7 @@ def match_chunks(
     ]
 
 
-# ── Graph Nodes ────────────────────────────────────────────────────────────────
+# ── Graph Nodes ──────────────────────────────────────────────────────────────────────────────
 
 def upsert_graph_node(conn, node: GraphNode) -> UUID:
     with conn.cursor() as cur:
@@ -167,7 +167,7 @@ def get_node_by_label(conn, label: str, node_type: str) -> dict | None:
     return None
 
 
-# ── Graph Edges ────────────────────────────────────────────────────────────────
+# ── Graph Edges ──────────────────────────────────────────────────────────────────────────────
 
 def upsert_graph_edge(conn, edge: GraphEdge) -> UUID:
     with conn.cursor() as cur:
@@ -205,7 +205,7 @@ def get_all_graph_edges(conn) -> list[dict]:
     ]
 
 
-# ── Stats ──────────────────────────────────────────────────────────────────────
+# ── Stats ──────────────────────────────────────────────────────────────────────────────────
 
 def get_stats(conn) -> dict:
     with conn.cursor() as cur:
