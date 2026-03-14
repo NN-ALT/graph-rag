@@ -107,14 +107,28 @@ def ask_ai_config() -> dict:
 
     # Q3 — LLM Provider
     print("\nQuestion 3 of 5 — LLM Provider")
-    print("  lmstudio  : fully offline, uses a local model via LM Studio")
-    print("  claude    : Anthropic API, requires an API key and internet access")
-    provider = ask("  Choose provider", ["lmstudio", "claude"], default="lmstudio")
-    config["llm_provider"] = provider
-    ok(f"Provider: {provider}")
+    print("  How will the RAG generate answers?\n")
+    print("  mcp       : use via Claude Code (no API key needed — recommended)")
+    print("              Claude Code retrieves context through the MCP server and")
+    print("              generates answers using your existing Claude subscription.")
+    print("  lmstudio  : standalone mode, fully offline via LM Studio local model")
+    print("  claude    : standalone mode, Anthropic API key required (pay-per-token)")
+    provider = ask("  Choose provider", ["mcp", "lmstudio", "claude"], default="mcp")
+    config["mcp_mode"]      = (provider == "mcp")
+    config["llm_provider"] = "lmstudio" if provider == "mcp" else provider
+    config["anthropic_api_key"] = ""
+    config["claude_model"]      = "claude-sonnet-4-6"
+    config["lm_studio_url"]     = "http://localhost:1234/v1"
+    config["lm_studio_model"]   = "local-model"
+    config["chars_per_token"]   = 4
+
+    if provider == "mcp":
+        ok("MCP mode — Claude Code will handle answer generation.")
+        info("The RAG will retrieve and index your documents. Claude Code does the rest.")
+        info("Register the MCP server when prompted below to complete setup.")
 
     # Q4a — LM Studio details
-    if provider == "lmstudio":
+    elif provider == "lmstudio":
         print("\nQuestion 4 of 5 — LM Studio")
         if not cmd_exists("lms") and not cmd_exists("LM Studio"):
             warn("LM Studio does not appear to be installed.")
@@ -130,20 +144,22 @@ def ask_ai_config() -> dict:
         ) or "local-model"
         config["lm_studio_url"]   = lms_url
         config["lm_studio_model"] = lms_model
-        config["anthropic_api_key"] = ""
-        config["claude_model"]      = "claude-sonnet-4-6"
-        config["chars_per_token"]   = 4
         ok(f"LM Studio URL: {lms_url}")
 
-    # Q4b — Claude details
+    # Q4b — Claude API details
     else:
         print("\nQuestion 4 of 5 — Claude API")
-        api_key = ask_secret("  Enter your ANTHROPIC_API_KEY")
+        print("  NOTE: This requires a separate pay-per-token API account at")
+        print("  console.anthropic.com — your Claude.ai or Claude Code subscription")
+        print("  cannot be used here.")
+        print("  If you plan to use this RAG via Claude Code MCP only, skip this")
+        print("  and re-run the installer choosing 'mcp' instead.\n")
+        api_key = ask_secret("  Enter your ANTHROPIC_API_KEY (press Enter to skip)")
         if not api_key:
-            warn("No API key entered. You can add it to .env later (ANTHROPIC_API_KEY=...).")
+            info("Skipped. Add ANTHROPIC_API_KEY to .env later if needed.")
         print("  Available models:")
-        print("    1) claude-sonnet-4-6   (recommended — fast and capable)")
-        print("    2) claude-opus-4-6     (most capable, slower)")
+        print("    1) claude-sonnet-4-6          (recommended — fast and capable)")
+        print("    2) claude-opus-4-6             (most capable, slower)")
         print("    3) claude-haiku-4-5-20251001   (fastest, lightweight)")
         model_choice = ask("  Select model", ["1", "2", "3"], default="1")
         model_map = {
@@ -153,9 +169,7 @@ def ask_ai_config() -> dict:
         }
         config["anthropic_api_key"] = api_key
         config["claude_model"]      = model_map[model_choice]
-        config["lm_studio_url"]     = "http://localhost:1234/v1"
-        config["lm_studio_model"]   = "local-model"
-        config["chars_per_token"]   = 3   # Claude tokenizer is denser than most LM Studio models
+        config["chars_per_token"]   = 3
         ok(f"Claude model: {config['claude_model']}")
 
     # Q5 — Chunking preferences
@@ -254,9 +268,11 @@ def register_mcp(detected_os: str):
 
 
 def print_final_summary(mode: str, ai_config: dict):
-    provider = ai_config["llm_provider"]
-    if provider == "claude":
-        llm_note = f"Claude API ({ai_config['claude_model']})"
+    if ai_config.get("mcp_mode"):
+        llm_note = "MCP via Claude Code (no API key needed)"
+    elif ai_config["llm_provider"] == "claude":
+        key_status = "key set" if ai_config.get("anthropic_api_key") else "add ANTHROPIC_API_KEY to .env"
+        llm_note = f"Claude API ({ai_config['claude_model']}) — {key_status}"
     else:
         llm_note = f"LM Studio ({ai_config['lm_studio_url']})"
 
@@ -426,8 +442,8 @@ def main():
   This installer will ask 5 questions then handle everything:
     1. Platform detection
     2. Docker availability
-    3. LLM provider (LM Studio or Claude API)
-    4. Provider credentials / connection details
+    3. LLM provider (MCP via Claude Code, LM Studio, or Claude API)
+    4. Provider credentials / connection details (if applicable)
     5. Document chunking preferences
 
   Then it will:

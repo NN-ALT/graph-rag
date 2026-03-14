@@ -251,6 +251,49 @@
     VERSION_UPDATE.txt
 
 
+--------------------------------------------------------------------------------
+  v1.6.0 — MCP Mode and Optional API Key in Installer
+  Date: 2026-03-14
+--------------------------------------------------------------------------------
+
+  CHANGES:
+
+  - MCP added as a first-class provider option (install.py)
+    Question 3 now offers three choices:
+
+      mcp       — recommended for Claude Code users. The RAG handles retrieval
+                  and indexing; Claude Code generates answers via the MCP server
+                  using the user's existing Claude subscription. No API key needed.
+      lmstudio  — standalone offline mode via LM Studio local model.
+      claude    — standalone mode via Anthropic API (pay-per-token, separate
+                  from Claude.ai and Claude Code subscriptions).
+
+    Selecting 'mcp' skips the credentials prompt entirely (Q4 is not shown)
+    and sets LLM_PROVIDER=lmstudio as a fallback for standalone use.
+
+  - ANTHROPIC_API_KEY is now optional (install.py)
+    Previously the installer always prompted for it when 'claude' was chosen
+    and silently wrote a blank value otherwise. Now:
+    - 'mcp' selection: key prompt skipped entirely.
+    - 'claude' selection: a clear note explains the key comes from
+      console.anthropic.com and is separate from Claude.ai/Claude Code Pro.
+      User can press Enter to skip and add the key to .env manually later.
+
+  - mcp_mode flag in ai_config (install.py)
+    Tracked separately from llm_provider so the completion summary can
+    correctly display "MCP via Claude Code" vs "LM Studio" even though both
+    write LLM_PROVIDER=lmstudio to .env.
+
+  - Completion screen shows correct provider label (install.py)
+    - MCP mode    : "MCP via Claude Code (no API key needed)"
+    - LM Studio   : "LM Studio (http://localhost:1234/v1)"
+    - Claude API  : "Claude API (model) — key set / add ANTHROPIC_API_KEY to .env"
+
+  FILES CHANGED:
+    install.py
+    VERSION_UPDATE.txt
+
+
 ================================================================================
   END OF LOG
 ================================================================================
