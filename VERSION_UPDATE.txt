@@ -201,6 +201,56 @@
     mcp_server.py
 
 
+--------------------------------------------------------------------------------
+  v1.5.0 — Installer AI Configuration Questionnaire
+  Date: 2026-03-14
+--------------------------------------------------------------------------------
+
+  CHANGES:
+
+  - AI configuration questionnaire (install.py)
+    The installer now asks 5 questions instead of 2 before beginning setup.
+    Questions 3–5 gather everything needed to configure the AI layer so the
+    .env file is fully correct from the start, with no manual editing required.
+
+    Question 3 — LLM Provider
+      Choose between lmstudio (fully offline) or claude (Anthropic API).
+      If LM Studio is selected and the lms command is not found, the installer
+      warns the user and provides the download link.
+
+    Question 4 — Provider credentials / connection
+      lmstudio: prompts for the server URL (default http://localhost:1234/v1)
+                and the default model name shown in LM Studio.
+      claude:   prompts for ANTHROPIC_API_KEY (hidden input via getpass) and
+                presents a numbered model menu:
+                  1) claude-sonnet-4-6   (default)
+                  2) claude-opus-4-6
+                  3) claude-haiku-4-5-20251001
+
+    Question 5 — Document chunking preferences
+      Option to use defaults (size=512, overlap=64) or enter custom values.
+      Explains the trade-off between chunk size and retrieval precision.
+
+  - write_env() now fully configured (install.py)
+    Previously always wrote LLM_PROVIDER=lmstudio and a blank ANTHROPIC_API_KEY
+    regardless of user intent. Now writes all values from the questionnaire
+    including LM_STUDIO_URL, LM_STUDIO_MODEL, ANTHROPIC_API_KEY, CLAUDE_MODEL,
+    CHUNK_SIZE, CHUNK_OVERLAP, and CHARS_PER_TOKEN (auto-set to 3 for Claude,
+    4 for LM Studio to match each tokenizer's density).
+
+  - print_final_summary() shows configured provider (install.py)
+    The completion screen now displays the active provider and model/URL
+    so the user can confirm the correct settings were applied.
+
+  - ask_secret() helper (install.py)
+    API key input uses getpass for hidden entry. Falls back to plain input
+    on terminals that do not support it.
+
+  FILES CHANGED:
+    install.py
+    VERSION_UPDATE.txt
+
+
 ================================================================================
   END OF LOG
 ================================================================================
