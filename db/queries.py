@@ -7,7 +7,7 @@ from __future__ import annotations
 from uuid import UUID
 import json
 import numpy as np
-from db.models import Document, Chunk, Embedding, GraphNode, GraphEdge
+from db.models import Document, Chunk, Embedding, GraphNode, GraphEdge, RetrievalResult
 
 
 # ── Documents ───────────────────────────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ def match_chunks(
     query_embedding: list[float],
     match_count: int = 5,
     min_similarity: float = 0.4,
-) -> list[dict]:
+) -> list[RetrievalResult]:
     with conn.cursor() as cur:
         cur.execute(
             "SELECT chunk_id, document_id, content, similarity "
@@ -119,7 +119,7 @@ def match_chunks(
         )
         rows = cur.fetchall()
     return [
-        {"chunk_id": r[0], "document_id": r[1], "content": r[2], "similarity": r[3]}
+        RetrievalResult(chunk_id=r[0], document_id=r[1], content=r[2], similarity=r[3])
         for r in rows
     ]
 
@@ -205,7 +205,68 @@ def get_all_graph_edges(conn) -> list[dict]:
     ]
 
 
-# ── Stats ──────────────────────────────────────────────────────────────────────────────────
+# ── Graph Index Tracking ───────────────────────────────────────────────────────
+
+def ensure_graph_indexed_column(conn) -> None:
+    """Add graph_indexed_at column if it doesn't exist (safe migration for existing DBs)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS graph_indexed_at TIMESTAMPTZ"
+        )
+
+
+def get_chunks_needing_graph_index(conn) -> list[Chunk]:
+    """Return all chunks that have not yet been graph-indexed."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id, document_id, chunk_index, content, char_start, char_end, token_count "
+            "FROM chunks WHERE graph_indexed_at IS NULL ORDER BY document_id, chunk_index"
+        )
+        rows = cur.fetchall()
+    return [
+        Chunk(id=r[0], document_id=r[1], chunk_index=r[2], content=r[3],
+              char_start=r[4], char_end=r[5], token_count=r[6])
+        for r in rows
+    ]
+
+
+def mark_chunks_graph_indexed(conn, chunk_ids: list) -> None:
+    """Mark the given chunks as graph-indexed."""
+    if not chunk_ids:
+        return
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE chunks SET graph_indexed_at = NOW() WHERE id = ANY(%s)",
+            ([str(cid) for cid in chunk_ids],),
+        )
+
+
+def reset_graph_indexed(conn) -> None:
+    """Clear graph_indexed_at on all chunks (forces full rebuild on next run)."""
+    with conn.cursor() as cur:
+        cur.execute("UPDATE chunks SET graph_indexed_at = NULL")
+
+
+# ── Vector Index ───────────────────────────────────────────────────────────────
+
+def create_vector_index(conn) -> None:
+    """
+    Create an IVFFlat vector index on the embeddings table.
+    Run this after loading a substantial amount of data (ideally 1000+ rows).
+    The index significantly speeds up similarity search on large tables.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_embeddings_vector
+            ON embeddings
+            USING ivfflat (embedding vector_cosine_ops)
+            WITH (lists = 100)
+            """
+        )
+
+
+# ── Stats ──────────────────────────────────────────────────────────────────────
 
 def get_stats(conn) -> dict:
     with conn.cursor() as cur:

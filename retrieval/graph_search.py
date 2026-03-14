@@ -6,8 +6,18 @@ from __future__ import annotations
 from graph.store import load_graph_from_db
 from graph.traversal import get_related_chunk_ids
 
+_MAX_GRAPH_CHUNKS = 50
 
-def expand_with_graph(seed_chunk_ids: list[str], hops: int = 1) -> list[str]:
+
+def expand_with_graph(
+    seed_chunk_ids: list[str],
+    hops: int = 1,
+) -> list[str]:
+    """
+    Load the graph from DB (cached), find all nodes whose source_chunk_id is in
+    seed_chunk_ids, traverse hops levels of edges, and return all
+    connected chunk IDs (including seeds), capped at _MAX_GRAPH_CHUNKS.
+    """
     if not seed_chunk_ids:
         return []
     graph = load_graph_from_db()
@@ -18,6 +28,9 @@ def expand_with_graph(seed_chunk_ids: list[str], hops: int = 1) -> list[str]:
     ]
     expanded_chunks = set(seed_chunk_ids)
     for node_id in seed_node_ids:
+        if len(expanded_chunks) >= _MAX_GRAPH_CHUNKS:
+            break
         related = get_related_chunk_ids(graph, node_id, hops=hops)
         expanded_chunks.update(related)
-    return list(expanded_chunks)
+
+    return list(expanded_chunks)[:_MAX_GRAPH_CHUNKS]

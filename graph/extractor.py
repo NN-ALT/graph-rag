@@ -4,8 +4,11 @@ Uses spaCy NER. Falls back to noun-phrase regex if spaCy model unavailable.
 """
 
 from __future__ import annotations
+import logging
 from db.models import Chunk, GraphNode, GraphEdge
 from itertools import combinations
+
+log = logging.getLogger(__name__)
 
 _nlp = None
 
@@ -17,8 +20,10 @@ def _get_nlp():
         try:
             _nlp = spacy.load("en_core_web_sm")
         except OSError:
-            print("[extractor] spaCy model not found. Run: py -m spacy download en_core_web_sm")
-            print("[extractor] Falling back to noun-phrase regex extraction.")
+            log.warning(
+                "spaCy model not found. Run: py -m spacy download en_core_web_sm\n"
+                "Falling back to noun-phrase regex extraction."
+            )
             _nlp = "fallback"
     return _nlp
 
@@ -57,9 +62,10 @@ def extract_entities_and_relations(
         )
         entities.append(node)
 
+    # Deduplicate by type + label so same text with different types is kept distinct
     seen: dict[str, GraphNode] = {}
     for node in entities:
-        key = node.label.lower()
+        key = f"{node.node_type}:{node.label.lower()}"
         if key not in seen:
             seen[key] = node
     unique_entities = list(seen.values())
@@ -85,7 +91,7 @@ def _regex_extract(chunk: Chunk) -> tuple[list[GraphNode], list[GraphEdge]]:
     matches = re.findall(pattern, chunk.content)
     seen: dict[str, GraphNode] = {}
     for m in matches:
-        key = m.lower()
+        key = f"concept:{m.lower()}"
         if key not in seen and len(m) > 2:
             seen[key] = GraphNode(
                 label=m,

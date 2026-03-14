@@ -7,8 +7,12 @@ All subsequent runs: fully offline.
 """
 
 from __future__ import annotations
+import functools
+import logging
 from sentence_transformers import SentenceTransformer
 from config import settings
+
+log = logging.getLogger(__name__)
 
 _model: SentenceTransformer | None = None
 
@@ -16,9 +20,9 @@ _model: SentenceTransformer | None = None
 def _get_model() -> SentenceTransformer:
     global _model
     if _model is None:
-        print(f"[encoder] Loading embedding model: {settings.embedding_model}")
+        log.info("Loading embedding model: %s", settings.embedding_model)
         _model = SentenceTransformer(settings.embedding_model)
-        print(f"[encoder] Model ready (dim={settings.embedding_dim})")
+        log.info("Model ready (dim=%d)", settings.embedding_dim)
     return _model
 
 
@@ -30,5 +34,6 @@ def encode(texts: list[str]) -> list[list[float]]:
     return [v.tolist() for v in vectors]
 
 
+@functools.lru_cache(maxsize=256)
 def encode_one(text: str) -> list[float]:
     return encode([text])[0]

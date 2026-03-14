@@ -3,6 +3,7 @@ Ingestion pipeline: load -> chunk -> embed -> store -> build graph
 """
 
 from __future__ import annotations
+import logging
 from ingestion.loader import load_document
 from ingestion.chunker import chunk_document
 from embeddings.encoder import encode
@@ -11,15 +12,18 @@ from db import queries
 from db.models import Embedding
 from config import settings
 from graph.builder import build_graph_from_chunks
+from graph.store import invalidate_graph_cache
+
+log = logging.getLogger(__name__)
 
 
 def ingest(path: str, strategy: str = "sentence") -> dict:
-    print(f"[ingest] Loading: {path}")
+    log.info("Loading: %s", path)
     doc = load_document(path)
 
     with get_conn() as conn:
         doc_id = queries.insert_document(conn, doc)
-        print(f"[ingest] Document stored: {doc_id}")
+        log.info("Document stored: %s", doc_id)
 
         chunks = chunk_document(
             doc, doc_id,
@@ -27,7 +31,7 @@ def ingest(path: str, strategy: str = "sentence") -> dict:
             chunk_size=settings.chunk_size,
             overlap=settings.chunk_overlap,
         )
-        print(f"[ingest] Created {len(chunks)} chunks")
+        log.info("Created %d chunks", len(chunks))
 
         chunk_ids = []
         for chunk in chunks:
@@ -37,7 +41,7 @@ def ingest(path: str, strategy: str = "sentence") -> dict:
 
         texts = [c.content for c in chunks]
         vectors = encode(texts)
-        print(f"[ingest] Embedded {len(vectors)} chunks")
+        log.info("Embedded %d chunks", len(vectors))
 
         for chunk, vector in zip(chunks, vectors):
             emb = Embedding(
@@ -47,8 +51,9 @@ def ingest(path: str, strategy: str = "sentence") -> dict:
             )
             queries.insert_embedding(conn, emb)
 
-    print("[ingest] Stored to database. Building graph...")
+    log.info("Stored to database. Building graph...")
     build_graph_from_chunks(chunks)
+    invalidate_graph_cache()
 
     return {
         "document_id": str(doc_id),

@@ -7,25 +7,46 @@ Set LLM_PROVIDER in .env:
 """
 
 from __future__ import annotations
+import logging
+import time
 from config import settings
+
+log = logging.getLogger(__name__)
 
 
 def _lmstudio_chat(messages: list[dict], model: str, temperature: float, max_tokens: int) -> str:
     from openai import OpenAI
-    client = OpenAI(base_url=settings.lm_studio_url, api_key="lm-studio")
-    try:
-        response = client.chat.completions.create(
-            model=model or settings.lm_studio_model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        raise RuntimeError(
-            f"LM Studio request failed. Is LM Studio running at {settings.lm_studio_url} "
-            f"with a model loaded?\nError: {e}"
-        ) from e
+
+    client = OpenAI(
+        base_url=settings.lm_studio_url,
+        api_key="lm-studio",  # required by SDK, ignored by LM Studio
+    )
+    last_error: Exception | None = None
+    for attempt in range(settings.lm_studio_retries):
+        try:
+            log.debug("LM Studio request attempt %d/%d", attempt + 1, settings.lm_studio_retries)
+            response = client.chat.completions.create(
+                model=model or settings.lm_studio_model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            last_error = e
+            if attempt < settings.lm_studio_retries - 1:
+                wait = 2 ** attempt  # 1s, 2s, 4s, …
+                log.warning(
+                    "LM Studio attempt %d/%d failed: %s — retrying in %ds",
+                    attempt + 1, settings.lm_studio_retries, e, wait,
+                )
+                time.sleep(wait)
+
+    raise RuntimeError(
+        f"LM Studio request failed after {settings.lm_studio_retries} attempts. "
+        f"Is LM Studio running at {settings.lm_studio_url} with a model loaded?\n"
+        f"Last error: {last_error}"
+    ) from last_error
 
 
 def _lmstudio_list_models() -> list[str]:
@@ -35,6 +56,11 @@ def _lmstudio_list_models() -> list[str]:
         return [m.id for m in client.models.list().data]
     except Exception:
         return []
+
+
+# ── Claude (Anthropic API) ────────────────────────────────────────────────────
+
+_CLAUDE_RETRIES = 3
 
 
 def _claude_chat(messages: list[dict], model: str, temperature: float, max_tokens: int) -> str:
@@ -56,11 +82,27 @@ def _claude_chat(messages: list[dict], model: str, temperature: float, max_token
     kwargs = dict(model=model, max_tokens=max_tokens, temperature=temperature, messages=user_messages)
     if system_text:
         kwargs["system"] = system_text
-    try:
-        response = client.messages.create(**kwargs)
-        return response.content[0].text.strip()
-    except Exception as e:
-        raise RuntimeError(f"Claude API request failed: {e}") from e
+
+    last_error: Exception | None = None
+    for attempt in range(_CLAUDE_RETRIES):
+        try:
+            log.debug("Claude API request attempt %d/%d: model=%s", attempt + 1, _CLAUDE_RETRIES, model)
+            response = client.messages.create(**kwargs)
+            return response.content[0].text.strip()
+        except Exception as e:
+            last_error = e
+            if attempt < _CLAUDE_RETRIES - 1:
+                wait = 2 ** attempt  # 1s, 2s, 4s
+                log.warning(
+                    "Claude API attempt %d/%d failed: %s — retrying in %ds",
+                    attempt + 1, _CLAUDE_RETRIES, e, wait,
+                )
+                time.sleep(wait)
+
+    raise RuntimeError(
+        f"Claude API request failed after {_CLAUDE_RETRIES} attempts.\n"
+        f"Last error: {last_error}"
+    ) from last_error
 
 
 def _claude_list_models() -> list[str]:

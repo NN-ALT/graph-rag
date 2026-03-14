@@ -52,6 +52,15 @@ class GraphNode:
 
 
 @dataclass
+class RetrievalResult:
+    chunk_id: UUID
+    document_id: UUID
+    content: str
+    similarity: float
+    source: str = "vector"  # "vector" | "graph"
+
+
+@dataclass
 class GraphEdge:
     source_node_id: UUID
     target_node_id: UUID

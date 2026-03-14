@@ -30,4 +30,11 @@ def answer(
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"},
     ]
     response = chat(messages, temperature=temperature, max_tokens=max_tokens)
-    return {"answer": response, "context_used": len(results), "sources": [str(r.get("chunk_id", "")) for r in results]}
+
+    sources = [str(r.chunk_id) for r in results]
+
+    return {
+        "answer": response,
+        "context_used": len(results),
+        "sources": sources,
+    }

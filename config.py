@@ -38,6 +38,12 @@ class Settings:
     chunk_size: int
     chunk_overlap: int
 
+    # LM Studio retry
+    lm_studio_retries: int
+
+    # Chars-per-token estimate for context budgeting (provider-dependent)
+    chars_per_token: int
+
     @property
     def db_dsn(self) -> str:
         return (
@@ -63,6 +69,9 @@ def load_settings() -> Settings:
         embedding_dim=int(os.getenv("EMBEDDING_DIM", "384")),
         chunk_size=int(os.getenv("CHUNK_SIZE", "512")),
         chunk_overlap=int(os.getenv("CHUNK_OVERLAP", "64")),
+        lm_studio_retries=int(os.getenv("LM_STUDIO_RETRIES", "3")),
+        # Claude tokenizer ~3.5 chars/token; LM Studio models ~4 chars/token
+        chars_per_token=int(os.getenv("CHARS_PER_TOKEN", "4")),
     )
 
 

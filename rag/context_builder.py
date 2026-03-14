@@ -3,23 +3,32 @@ Assembles retrieved chunks into a prompt context string.
 """
 
 from __future__ import annotations
+from config import settings
+from db.models import RetrievalResult
 
-_CHARS_PER_TOKEN = 4
 
+def build_context(
+    results: list[RetrievalResult],
+    max_tokens: int = 3000,
+) -> str:
+    """
+    Takes hybrid retrieval results and builds a formatted context string.
+    Prioritizes higher-similarity chunks. Stops when token budget is reached.
+    """
+    max_chars = max_tokens * settings.chars_per_token
 
-def build_context(results: list[dict], max_tokens: int = 3000) -> str:
-    max_chars = max_tokens * _CHARS_PER_TOKEN
-    sorted_results = sorted(results, key=lambda r: r.get("similarity", 0), reverse=True)
+    sorted_results = sorted(results, key=lambda r: r.similarity, reverse=True)
+
     sections: list[str] = []
     total_chars = 0
     for i, r in enumerate(sorted_results):
-        content = r.get("content", "").strip()
+        content = r.content.strip()
         if not content:
             continue
-        sim = r.get("similarity", 0)
-        sim_str = f" (similarity: {sim:.2f})" if sim > 0 else " (graph-related)"
-        header = f"[Context {i + 1}{sim_str}]"
-        block = f"{header}\n{content}"
+
+        sim_str = f" (similarity: {r.similarity:.2f})" if r.similarity > 0 else " (graph-related)"
+        block = f"[Context {i + 1}{sim_str}]\n{content}"
+
         if total_chars + len(block) > max_chars:
             break
         sections.append(block)

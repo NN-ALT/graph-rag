@@ -16,6 +16,7 @@ LLM providers (set LLM_PROVIDER in .env):
 import argparse
 import sys
 import json
+from logging_config import setup_logging
 
 
 def cmd_ingest(args):
@@ -28,10 +29,29 @@ def cmd_ingest(args):
 
 def cmd_build_graph(args):
     from graph.builder import build_graph_from_all_documents
-    result = build_graph_from_all_documents()
-    print(f"\nGraph built:")
-    print(f"  Nodes upserted : {result['nodes']}")
-    print(f"  Edges upserted : {result['edges']}")
+    result = build_graph_from_all_documents(force=args.force)
+    if result["nodes"] == 0 and result["edges"] == 0:
+        print("\nNothing to do — all chunks are already graph-indexed.")
+        print("Use --force to rebuild from scratch.")
+    else:
+        print(f"\nGraph built:")
+        print(f"  Nodes upserted : {result['nodes']}")
+        print(f"  Edges upserted : {result['edges']}")
+
+
+def cmd_create_index(args):
+    from db.connection import get_conn
+    from db.queries import create_vector_index, get_stats
+    with get_conn() as conn:
+        stats = get_stats(conn)
+        embedding_count = stats.get("embeddings", 0)
+        if embedding_count < 100:
+            print(f"\nWarning: only {embedding_count} embeddings in the database.")
+            print("IVFFlat index performs best with 1000+ rows.")
+            print("Proceeding anyway...")
+        print(f"\nBuilding IVFFlat vector index on {embedding_count} embeddings...")
+        create_vector_index(conn)
+    print("Vector index created (or already exists).")
 
 
 def cmd_query(args):
@@ -75,13 +95,20 @@ def main():
         description="Graph RAG — offline knowledge base with LM Studio",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
     sub = parser.add_subparsers(dest="command")
 
     p_ingest = sub.add_parser("ingest", help="Ingest a document")
     p_ingest.add_argument("path", help="Path to .txt, .md, or .pdf file")
     p_ingest.add_argument("--strategy", default="sentence", choices=["sentence", "fixed"])
 
-    sub.add_parser("build-graph", help="Rebuild graph from all stored documents")
+    # build-graph
+    p_build = sub.add_parser("build-graph", help="Build graph from unindexed chunks")
+    p_build.add_argument("--force", action="store_true",
+                         help="Reprocess all chunks, not just new ones")
+
+    # create-index
+    sub.add_parser("create-index", help="Create IVFFlat vector index (run after bulk ingest)")
 
     p_query = sub.add_parser("query", help="Ask a question")
     p_query.add_argument("question")
@@ -93,6 +120,8 @@ def main():
     sub.add_parser("models", help="List LM Studio loaded models")
 
     args = parser.parse_args()
+    setup_logging(verbose=getattr(args, "verbose", False))
+
     if not args.command:
         parser.print_help()
         sys.exit(0)
@@ -100,6 +129,7 @@ def main():
     dispatch = {
         "ingest": cmd_ingest,
         "build-graph": cmd_build_graph,
+        "create-index": cmd_create_index,
         "query": cmd_query,
         "stats": cmd_stats,
         "models": cmd_models,

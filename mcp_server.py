@@ -26,10 +26,12 @@ from __future__ import annotations
 import sys
 import os
 import argparse
+import logging
 
 sys.path.insert(0, os.path.dirname(__file__))
 
 from fastmcp import FastMCP
+from logging_config import setup_logging
 
 mcp = FastMCP(
     name="graph-rag",
@@ -81,7 +83,7 @@ def retrieve_context(question: str, k: int = 5, graph_hops: int = 1, min_similar
         )
     context = build_context(results, max_tokens=4000)
     chunk_count = len(results)
-    vector_count = sum(1 for r in results if r.get("source") == "vector")
+    vector_count = sum(1 for r in results if r.source == "vector")
     graph_count = chunk_count - vector_count
     header = (
         f"Retrieved {chunk_count} chunk(s) from the knowledge base "
@@ -140,16 +142,37 @@ def get_knowledge_base_stats() -> str:
 
 
 @mcp.tool()
-def build_knowledge_graph() -> str:
-    """Rebuild the knowledge graph from all documents currently in the database."""
+def build_knowledge_graph(force: bool = False) -> str:
+    """
+    Build the knowledge graph from documents in the database.
+
+    By default only processes chunks added since the last run (incremental).
+    Set force=True to reprocess every chunk from scratch.
+
+    Run this after bulk-ingesting several documents, or if the graph
+    seems incomplete.
+
+    Args:
+        force: If True, reprocess all chunks even if already indexed.
+
+    Returns:
+        A summary of how many nodes and edges were upserted.
+    """
     try:
         from graph.builder import build_graph_from_all_documents
+        from graph.store import invalidate_graph_cache
     except Exception as e:
         return f"Import error: {e}"
     try:
-        result = build_graph_from_all_documents()
+        result = build_graph_from_all_documents(force=force)
+        invalidate_graph_cache()
+        if result["nodes"] == 0 and result["edges"] == 0:
+            return (
+                "Nothing to do — all chunks are already graph-indexed.\n"
+                "Call with force=True to rebuild from scratch."
+            )
         return (
-            f"Knowledge graph rebuilt.\n"
+            f"Knowledge graph built.\n"
             f"  Nodes upserted : {result['nodes']}\n"
             f"  Edges upserted : {result['edges']}"
         )
@@ -175,8 +198,8 @@ def search_chunks(query: str, k: int = 8, min_similarity: float = 0.3) -> str:
         return f"No chunks found matching '{query}' above similarity {min_similarity}."
     lines = [f"Found {len(results)} matching chunk(s):\n"]
     for i, r in enumerate(results, 1):
-        sim = r.get("similarity", 0)
-        content = r.get("content", "").strip()
+        sim = r.similarity
+        content = r.content.strip()
         preview = content[:300] + "..." if len(content) > 300 else content
         lines.append(f"[{i}] Similarity: {sim:.3f}")
         lines.append(preview)
@@ -191,9 +214,15 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     args = parser.parse_args()
     if args.http:
-        print(f"[graph-rag MCP] HTTP mode — http://{args.host}:{args.port}/mcp", flush=True)
+        setup_logging(stderr_only=True)
+        log = logging.getLogger(__name__)
+        log.info("HTTP mode — http://%s:%d/mcp", args.host, args.port)
         mcp.run(transport="streamable-http", host=args.host, port=args.port)
     else:
+        # stdio — Claude Code connects via subprocess.
+        # WARNING level keeps stdout clean for the MCP protocol channel.
+        setup_logging(stderr_only=True)
+        logging.getLogger().setLevel(logging.WARNING)
         mcp.run(transport="stdio")
 
 
