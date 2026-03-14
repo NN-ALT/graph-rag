@@ -163,10 +163,10 @@ def print_final_summary(mode: str):
   Directory : {ROOT}
 
   Quick start:
-    python chat.py                          — start chatting
-    python main.py ingest <file>            — add a document
-    python main.py stats                    — check knowledge base
-    python main.py query "your question"    — ask without chat UI
+    {PY} chat.py                          — start chatting
+    {PY} main.py ingest <file>            — add a document
+    {PY} main.py stats                    — check knowledge base
+    {PY} main.py query "your question"    — ask without chat UI
 
   LLM provider (edit .env to switch):
     LLM_PROVIDER=lmstudio   — fully offline (LM Studio must be running)

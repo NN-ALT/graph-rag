@@ -45,15 +45,16 @@ CREATE TABLE IF NOT EXISTS documents (
 );
 
 CREATE TABLE IF NOT EXISTS chunks (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    document_id     UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-    chunk_index     INTEGER NOT NULL,
-    content         TEXT NOT NULL,
-    token_count     INTEGER,
-    char_start      INTEGER,
-    char_end        INTEGER,
-    metadata        JSONB DEFAULT '{}',
-    created_at      TIMESTAMPTZ DEFAULT NOW()
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    document_id         UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    chunk_index         INTEGER NOT NULL,
+    content             TEXT NOT NULL,
+    token_count         INTEGER,
+    char_start          INTEGER,
+    char_end            INTEGER,
+    metadata            JSONB DEFAULT '{}',
+    graph_indexed_at    TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_chunks_document_id ON chunks(document_id);
